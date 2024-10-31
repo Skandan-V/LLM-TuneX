@@ -52,8 +52,8 @@ if st.button("Connect"):
         # Debug: Check the structure of the models data
         st.write("Models Data Structure:", st.session_state.models)
 
-        # Extract model names
-        model_names = [model.get('name', 'Unknown Model') for model in st.session_state.models]
+        # Extract model display names
+        model_names = [model.get('display_name', 'Unknown Model') for model in st.session_state.models]
         
         # Check for available models
         if not model_names:
