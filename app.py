@@ -5,27 +5,35 @@ import os
 
 # Constants
 MODEL_FILE = "models.json"
+API_URL = "https://api.together.ai/v1/models"  # Example API URL
 
 # Function to connect to the Together AI API and retrieve available models
 def get_models(api_key):
-    response = requests.get('https://api.together.ai/models', headers={'Authorization': f'Bearer {api_key}'})
-    if response.status_code == 200:
+    try:
+        response = requests.get(API_URL, headers={'Authorization': f'Bearer {api_key}'})
+        response.raise_for_status()  # Raise an error for bad responses (4xx, 5xx)
         return response.json()  # Assuming the response is JSON
-    else:
-        st.error("Failed to retrieve models.")
+    except requests.exceptions.HTTPError as err:
+        st.error(f"HTTP error occurred: {err}")
+        return []
+    except requests.exceptions.RequestException as err:
+        st.error(f"Error occurred while connecting to the API: {err}")
+        return []
+    except json.JSONDecodeError:
+        st.error("Failed to decode JSON response from the API.")
         return []
 
 # Function to validate the JSONL dataset structure
 def validate_dataset(file_path):
-    with open(file_path, 'r') as f:
-        for line in f:
-            try:
+    try:
+        with open(file_path, 'r') as f:
+            for line in f:
                 json_line = json.loads(line)
                 # Check if the required keys are in the dataset
                 if not all(key in json_line for key in ["prompt", "completion"]):
                     return False
-            except json.JSONDecodeError:
-                return False
+    except json.JSONDecodeError:
+        return False
     return True
 
 # Function to fine-tune the model (Placeholder for actual fine-tuning logic)
