@@ -1,87 +1,87 @@
 import streamlit as st
 import json
 import os
+import requests
 from datetime import datetime
-from some_ai_library import fine_tune_model  # Replace this with your actual fine-tuning function
+from transformers import Trainer, TrainingArguments, AutoModelForCausalLM, AutoTokenizer
 
-# File to store fine-tuned model information
+# Define constants
 MODEL_FILE = "models.json"
 
-# Load fine-tuned models from JSON file
+# Load or initialize model list
 def load_models():
     if os.path.exists(MODEL_FILE):
         with open(MODEL_FILE, "r") as f:
             return json.load(f)
     return []
 
-# Save fine-tuned models to JSON file
 def save_models(models):
     with open(MODEL_FILE, "w") as f:
         json.dump(models, f, indent=4)
 
-# Fine-tune model and save it
-def fine_tune_and_save(model_id, dataset_url, additional_params):
-    fine_tune_id = fine_tune_model(model_id=model_id, dataset=dataset_url, **additional_params)  # Placeholder for actual fine-tune function
-    models = load_models()
-    models.append({
-        "fine_tune_id": fine_tune_id,
-        "base_model_id": model_id,
-        "dataset_url": dataset_url,
-        "params": additional_params,
-        "timestamp": datetime.now().isoformat()
-    })
-    save_models(models)
-    return fine_tune_id
+# Fine-tune the model
+def fine_tune_model(model_name, dataset_url, output_dir):
+    # Load model and tokenizer
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Load dataset
+    # Assuming the dataset is in a JSONL format
+    dataset = requests.get(dataset_url).json()  # Adjust as needed based on the dataset structure
+    # Process the dataset to fit the required format for the Trainer
+
+    # Create TrainingArguments
+    training_args = TrainingArguments(
+        output_dir=output_dir,
+        per_device_train_batch_size=4,
+        num_train_epochs=3,
+        save_steps=10_000,
+        save_total_limit=2,
+    )
+
+    # Initialize Trainer
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset,  # This should be a Dataset object, adapt as needed
+    )
+
+    # Train model
+    trainer.train()
+
+    return model_name
 
 # Streamlit UI
-st.title("Automated Fine-Tuning Model Manager")
+st.title("LLama Model Fine-Tuning on Together AI")
 
-# Load the fine-tuned models list
-models = load_models()
+# Input fields
+model_name = st.text_input("Enter the base model name (e.g., 'huggingface/llama-7b'):")
+dataset_url = st.text_input("Enter the dataset URL:")
+output_dir = st.text_input("Output directory for the fine-tuned model:", value="fine_tuned_model")
 
-# Section to start fine-tuning a new model
-st.header("Fine-Tune a New Model")
-model_id = st.text_input("Enter Model ID")
-dataset_url = st.text_input("Dataset URL")
-learning_rate = st.number_input("Learning Rate", min_value=1e-6, max_value=1e-1, value=1e-3)
-epochs = st.number_input("Epochs", min_value=1, max_value=100, value=5)
-
-if st.button("Start Fine-Tuning"):
-    if model_id and dataset_url:
-        fine_tune_id = fine_tune_and_save(
-            model_id,
-            dataset_url,
-            {"learning_rate": learning_rate, "epochs": epochs}
-        )
-        st.success(f"Started fine-tuning. Fine-tune ID: {fine_tune_id}")
-    else:
-        st.error("Please enter both model ID and dataset URL.")
-
-# Display previously fine-tuned models
-st.header("Previously Fine-Tuned Models")
-if models:
-    for idx, model in enumerate(models):
-        st.subheader(f"Model {idx + 1}")
-        st.write(f"**Fine-Tune ID**: {model['fine_tune_id']}")
-        st.write(f"**Base Model ID**: {model['base_model_id']}")
-        st.write(f"**Dataset URL**: {model['dataset_url']}")
-        st.write(f"**Parameters**: {model['params']}")
-        st.write(f"**Timestamp**: {model['timestamp']}")
-        
-        # Continue training
-        if st.button(f"Continue Training {model['fine_tune_id']}"):
-            fine_tune_id = fine_tune_and_save(
-                model["fine_tune_id"],
-                model["dataset_url"],
-                model["params"]
-            )
-            st.success(f"Continued training. New fine-tune ID: {fine_tune_id}")
-
-        # Delete model
-        if st.button(f"Delete Model {model['fine_tune_id']}"):
-            models.pop(idx)
+if st.button("Fine-Tune Model"):
+    if model_name and dataset_url:
+        st.write("Fine-tuning the model...")
+        try:
+            fine_tuned_model = fine_tune_model(model_name, dataset_url, output_dir)
+            st.success(f"Model {fine_tuned_model} fine-tuned successfully.")
+            models = load_models()
+            models.append({
+                "model_name": fine_tuned_model,
+                "date": datetime.now().isoformat(),
+                "output_dir": output_dir
+            })
             save_models(models)
-            st.success(f"Deleted model {model['fine_tune_id']}")
-else:
-    st.write("No fine-tuned models found.")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+    else:
+        st.error("Please provide both the model name and dataset URL.")
 
+# Display fine-tuned models
+st.subheader("Fine-Tuned Models")
+models = load_models()
+if models:
+    for m in models:
+        st.write(f"Model: {m['model_name']} | Date: {m['date']} | Output Directory: {m['output_dir']}")
+else:
+    st.write("No models have been fine-tuned yet.")
